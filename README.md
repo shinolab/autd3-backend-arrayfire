@@ -1,6 +1,6 @@
-# autd3-backend-cuda
+# autd3-backend-arrayfire
 
-Holo gain backend using CUDA for [autd3](https://github.com/shinolab/autd3).
+Holo gain backend using ArrayFire for [autd3](https://github.com/shinolab/autd3-rs).
 
 # Author
 

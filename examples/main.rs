@@ -4,7 +4,7 @@
  * Created Date: 29/11/2023
  * Author: Shun Suzuki
  * -----
- * Last Modified: 29/11/2023
+ * Last Modified: 11/12/2023
  * Modified By: Shun Suzuki (suzuki@hapis.k.u-tokyo.ac.jp)
  * -----
  * Copyright (c) 2023 Shun Suzuki. All rights reserved.
@@ -15,7 +15,7 @@ use anyhow::Result;
 
 use autd3::prelude::*;
 
-use autd3_backend_cuda::CUDABackend;
+use autd3_backend_arrayfire::ArrayFireBackend;
 use autd3_gain_holo::*;
 
 #[tokio::main]
@@ -25,7 +25,7 @@ async fn main() -> Result<()> {
         .open_with(Nop::builder())
         .await?;
 
-    let backend = CUDABackend::new()?;
+    let backend = ArrayFireBackend::new()?;
 
     let center = autd.geometry.center() + Vector3::new(0., 0., 150.0 * MILLIMETER);
     let p = Vector3::new(30. * MILLIMETER, 0., 0.);
