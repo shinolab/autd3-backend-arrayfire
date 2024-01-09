@@ -92,9 +92,9 @@ checksum = "3c07dab4369547dbe5114677b33fbbf724971019f3818172d59a97a61c774ffd"
 
 [[package]]
 name = "autd3"
-version = "20.0.0"
+version = "20.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a234ebed502ea9b11cc9a906d8474ce41b4c5e5eeece55357faaeeceb1b2ce6e"
+checksum = "ac397552a7c1f9e35ddde2166d054968a1ef5da2da2ad5192142192831972445"
 dependencies = [
  "autd3-derive",
  "autd3-driver",
@@ -107,7 +107,7 @@ dependencies = [
 
 [[package]]
 name = "autd3-backend-arrayfire"
-version = "20.0.0"
+version = "20.0.3"
 dependencies = [
  "anyhow",
  "arrayfire",
@@ -123,9 +123,9 @@ dependencies = [
 
 [[package]]
 name = "autd3-derive"
-version = "20.0.0"
+version = "20.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d6a1a95af415a675a66a8cdf65a86cfd4936751be6242f83fa6778173dd61020"
+checksum = "62b649b8c574e89d2acc94de48fea4337365a141500ddfc76435dcef813873f1"
 dependencies = [
  "quote",
  "syn",
@@ -133,9 +133,9 @@ dependencies = [
 
 [[package]]
 name = "autd3-driver"
-version = "20.0.0"
+version = "20.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "539f7ca6cf091c1ac70fc13c3b96c7e25420aa921b226ec89990f8f1b144cca9"
+checksum = "8b82a1188b6f667333045499f737f8b186028ada7385586bffa623e28d76bb7c"
 dependencies = [
  "bitflags",
  "bitvec",
@@ -147,9 +147,9 @@ dependencies = [
 
 [[package]]
 name = "autd3-firmware-emulator"
-version = "20.0.0"
+version = "20.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b43f5b198c681d7f70c27e29b7166ed5925512106ecb12ae7638122f2d5545e4"
+checksum = "af1ef168727b436e6e975efb0ccedb6f8a3758ed13184525c92d94decd9c8501"
 dependencies = [
  "autd3-driver",
  "chrono",
@@ -159,9 +159,9 @@ dependencies = [
 
 [[package]]
 name = "autd3-gain-holo"
-version = "20.0.0"
+version = "20.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2abaed7b751e71bb6805311afc45ac89a26ff0103110ebbe5e4472c06a181b25"
+checksum = "34561ae036aeab6c11144897d5e190c918757cd136eca4777ca72a1856b64747"
 dependencies = [
  "assert_approx_eq",
  "autd3-derive",
