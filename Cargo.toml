@@ -1,6 +1,6 @@
 [package]
 name = "autd3-backend-arrayfire"
-version = "20.0.3"
+version = "21.0.0"
 authors = ["shun suzuki <suzuki@hapis.k.u-tokyo.ac.jp>"]
 edition = "2021"
 
@@ -11,8 +11,8 @@ readme = "README.md"
 keywords = ["autd"]
 
 [dependencies]
-autd3-driver = "20.0.3"
-autd3-gain-holo = "20.0.3"
+autd3-driver = "21.0.0"
+autd3-gain-holo = "21.0.0"
 nalgebra = { version = "0.32.1", default-features = false, features = ["std"] }
 arrayfire = "3.8.0"
 rand = "0.8.5"
@@ -20,7 +20,7 @@ thiserror = "1.0.31"
 
 [dev-dependencies]
 anyhow = "1.0.75"
-autd3 = "20.0.3"
+autd3 = "21.0.0"
 tokio = { version = "1.34.0", features = ["macros", "rt-multi-thread"] }
 criterion = { version = "0.5.1", features = ["html_reports"] }
 

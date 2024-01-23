@@ -1,20 +1,7 @@
-/*
- * File: lib.rs
- * Project: src
- * Created Date: 04/08/2023
- * Author: Shun Suzuki
- * -----
- * Last Modified: 11/12/2023
- * Modified By: Shun Suzuki (suzuki@hapis.k.u-tokyo.ac.jp)
- * -----
- * Copyright (c) 2023 Shun Suzuki. All rights reserved.
- *
- */
-
 #![allow(unknown_lints)]
 #![allow(clippy::manual_slice_size_calculation)]
 
-use std::rc::Rc;
+use std::sync::Arc;
 
 use arrayfire::*;
 
@@ -24,7 +11,9 @@ use autd3_driver::{
     defined::float,
     geometry::Geometry,
 };
-use autd3_gain_holo::{HoloError, LinAlgBackend, MatrixX, MatrixXc, Trans, VectorX, VectorXc};
+use autd3_gain_holo::{
+    Complex, HoloError, LinAlgBackend, MatrixX, MatrixXc, Trans, VectorX, VectorXc,
+};
 
 #[cfg(feature = "single_float")]
 type AfC = arrayfire::c32;
@@ -77,8 +66,8 @@ impl LinAlgBackend for ArrayFireBackend {
     type VectorXc = Array<AfC>;
     type VectorX = Array<float>;
 
-    fn new() -> Result<Rc<Self>, HoloError> {
-        Ok(Rc::new(Self {}))
+    fn new() -> Result<Arc<Self>, HoloError> {
+        Ok(Arc::new(Self {}))
     }
 
     fn generate_propagation_matrix(
@@ -667,6 +656,64 @@ impl LinAlgBackend for ArrayFireBackend {
 
     fn cols_c(&self, m: &Self::MatrixXc) -> Result<usize, HoloError> {
         Ok(m.dims()[1] as _)
+    }
+
+    fn scaled_to_cv(
+        &self,
+        a: &Self::VectorXc,
+        b: &Self::VectorXc,
+        c: &mut Self::VectorXc,
+    ) -> Result<(), HoloError> {
+        let mut tmp = self.clone_cv(a)?;
+        self.normalize_assign_cv(&mut tmp)?;
+        self.hadamard_product_cv(&tmp, b, c)?;
+        Ok(())
+    }
+
+    fn scaled_to_assign_cv(
+        &self,
+        a: &Self::VectorXc,
+        b: &mut Self::VectorXc,
+    ) -> Result<(), HoloError> {
+        self.normalize_assign_cv(b)?;
+        self.hadamard_product_assign_cv(a, b)?;
+        Ok(())
+    }
+
+    fn gen_back_prop(
+        &self,
+        _m: usize,
+        n: usize,
+        transfer: &Self::MatrixXc,
+        b: &mut Self::MatrixXc,
+    ) -> Result<(), HoloError> {
+        let mut tmp = self.alloc_zeros_cm(n, n)?;
+
+        self.gemm_c(
+            Trans::NoTrans,
+            Trans::ConjTrans,
+            Complex::new(1., 0.),
+            transfer,
+            transfer,
+            Complex::new(0., 0.),
+            &mut tmp,
+        )?;
+
+        let mut denominator = self.alloc_cv(n)?;
+        self.get_diagonal_c(&tmp, &mut denominator)?;
+        self.reciprocal_assign_c(&mut denominator)?;
+
+        self.create_diagonal_c(&denominator, &mut tmp)?;
+
+        self.gemm_c(
+            Trans::ConjTrans,
+            Trans::NoTrans,
+            Complex::new(1., 0.),
+            transfer,
+            &tmp,
+            Complex::new(0., 0.),
+            b,
+        )
     }
 }
 
