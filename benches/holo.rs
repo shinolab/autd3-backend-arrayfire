@@ -1,4 +1,4 @@
-#[cfg(feature = "test-utilities")]
+#[cfg(feature = "bench-utilities")]
 criterion::criterion_group!(
     benches,
     autd3_gain_holo::test_utilities::bench_utils::foci::<
@@ -10,8 +10,8 @@ criterion::criterion_group!(
         2,
     >
 );
-#[cfg(feature = "test-utilities")]
+#[cfg(feature = "bench-utilities")]
 criterion::criterion_main!(benches);
 
-#[cfg(not(feature = "test-utilities"))]
+#[cfg(not(feature = "bench-utilities"))]
 fn main() {}
