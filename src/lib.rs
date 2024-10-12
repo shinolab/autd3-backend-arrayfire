@@ -1,7 +1,7 @@
 #![allow(unknown_lints)]
 #![allow(clippy::manual_slice_size_calculation)]
 
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
 use arrayfire::*;
 
@@ -58,17 +58,27 @@ impl ArrayFireBackend<Sphere> {
     }
 }
 
+impl Default for ArrayFireBackend<Sphere> {
+    fn default() -> Self {
+        Self {
+            _phantom: Default::default(),
+        }
+    }
+}
+
+impl<D: Directivity> ArrayFireBackend<D> {
+    pub fn new() -> Self {
+        Self {
+            _phantom: std::marker::PhantomData,
+        }
+    }
+}
+
 impl<D: Directivity> LinAlgBackend<D> for ArrayFireBackend<D> {
     type MatrixXc = Array<c32>;
     type MatrixX = Array<f32>;
     type VectorXc = Array<c32>;
     type VectorX = Array<f32>;
-
-    fn new() -> Result<Arc<Self>, HoloError> {
-        Ok(Arc::new(Self {
-            _phantom: std::marker::PhantomData,
-        }))
-    }
 
     fn generate_propagation_matrix(
         &self,
@@ -538,7 +548,7 @@ mod tests {
                             j as f32 * AUTD3::DEVICE_HEIGHT,
                             0.,
                         ))
-                        .into_device(j + i * size)
+                        .into_device((j + i * size) as _)
                     })
                 })
                 .collect(),
