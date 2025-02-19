@@ -5,17 +5,17 @@ use std::collections::HashMap;
 
 use arrayfire::*;
 
-use autd3_driver::{
+use autd3_core::{
     acoustics::{
         directivity::{Directivity, Sphere},
         propagate,
     },
+    gain::BitVec,
     geometry::Geometry,
 };
 use autd3_gain_holo::{
     Complex, HoloError, LinAlgBackend, MatrixX, MatrixXc, Trans, VectorX, VectorXc,
 };
-use bit_vec::BitVec;
 
 pub type AFBackend = arrayfire::Backend;
 pub type AFDeviceInfo = (String, String, String, String);
@@ -83,8 +83,8 @@ impl<D: Directivity> LinAlgBackend<D> for ArrayFireBackend<D> {
     fn generate_propagation_matrix(
         &self,
         geometry: &Geometry,
-        foci: &[autd3_driver::geometry::Vector3],
-        filter: &Option<HashMap<usize, BitVec<u32>>>,
+        foci: &[autd3_core::geometry::Point3],
+        filter: Option<&HashMap<usize, BitVec>>,
     ) -> Result<Self::MatrixXc, HoloError> {
         let g = if let Some(filter) = filter {
             geometry
@@ -520,11 +520,11 @@ impl<D: Directivity> LinAlgBackend<D> for ArrayFireBackend<D> {
 }
 #[cfg(test)]
 mod tests {
-    use autd3_driver::{
+    use autd3::driver::autd3_device::AUTD3;
+    use autd3_core::{
         acoustics::directivity::Sphere,
-        autd3_device::AUTD3,
         defined::PI,
-        geometry::{IntoDevice, Vector3},
+        geometry::{IntoDevice, Point3, UnitQuaternion},
     };
 
     use nalgebra::{ComplexField, Normed};
@@ -543,11 +543,14 @@ mod tests {
             (0..size)
                 .flat_map(|i| {
                     (0..size).map(move |j| {
-                        AUTD3::new(Vector3::new(
-                            i as f32 * AUTD3::DEVICE_WIDTH,
-                            j as f32 * AUTD3::DEVICE_HEIGHT,
-                            0.,
-                        ))
+                        AUTD3 {
+                            pos: Point3::new(
+                                i as f32 * AUTD3::DEVICE_WIDTH,
+                                j as f32 * AUTD3::DEVICE_HEIGHT,
+                                0.,
+                            ),
+                            rot: UnitQuaternion::identity(),
+                        }
                         .into_device((j + i * size) as _)
                     })
                 })
@@ -555,10 +558,10 @@ mod tests {
         )
     }
 
-    fn gen_foci(n: usize) -> impl Iterator<Item = (Vector3, Amplitude)> {
+    fn gen_foci(n: usize) -> impl Iterator<Item = (Point3, Amplitude)> {
         (0..n).map(move |i| {
             (
-                Vector3::new(
+                Point3::new(
                     90. + 10. * (2.0 * PI * i as f32 / n as f32).cos(),
                     70. + 10. * (2.0 * PI * i as f32 / n as f32).sin(),
                     150.,
@@ -572,9 +575,9 @@ mod tests {
         backend: &ArrayFireBackend<Sphere>,
         size: usize,
     ) -> Result<<ArrayFireBackend<Sphere> as LinAlgBackend<Sphere>>::VectorX, HoloError> {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let v: Vec<f32> = (&mut rng)
-            .sample_iter(rand::distributions::Standard)
+            .sample_iter(rand::distr::StandardUniform)
             .take(size)
             .collect();
         backend.from_slice_v(&v)
@@ -585,9 +588,9 @@ mod tests {
         rows: usize,
         cols: usize,
     ) -> Result<<ArrayFireBackend<Sphere> as LinAlgBackend<Sphere>>::MatrixX, HoloError> {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let v: Vec<f32> = (&mut rng)
-            .sample_iter(rand::distributions::Standard)
+            .sample_iter(rand::distr::StandardUniform)
             .take(rows * cols)
             .collect();
         backend.from_slice_m(rows, cols, &v)
@@ -597,13 +600,13 @@ mod tests {
         backend: &ArrayFireBackend<Sphere>,
         size: usize,
     ) -> Result<<ArrayFireBackend<Sphere> as LinAlgBackend<Sphere>>::VectorXc, HoloError> {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let real: Vec<f32> = (&mut rng)
-            .sample_iter(rand::distributions::Standard)
+            .sample_iter(rand::distr::StandardUniform)
             .take(size)
             .collect();
         let imag: Vec<f32> = (&mut rng)
-            .sample_iter(rand::distributions::Standard)
+            .sample_iter(rand::distr::StandardUniform)
             .take(size)
             .collect();
         backend.from_slice2_cv(&real, &imag)
@@ -614,13 +617,13 @@ mod tests {
         rows: usize,
         cols: usize,
     ) -> Result<<ArrayFireBackend<Sphere> as LinAlgBackend<Sphere>>::MatrixXc, HoloError> {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let real: Vec<f32> = (&mut rng)
-            .sample_iter(rand::distributions::Standard)
+            .sample_iter(rand::distr::StandardUniform)
             .take(rows * cols)
             .collect();
         let imag: Vec<f32> = (&mut rng)
-            .sample_iter(rand::distributions::Standard)
+            .sample_iter(rand::distr::StandardUniform)
             .take(rows * cols)
             .collect();
         backend.from_slice2_cm(rows, cols, &real, &imag)
@@ -732,10 +735,10 @@ mod tests {
     #[test]
     #[cfg_attr(miri, ignore)]
     fn test_from_slice_v(backend: ArrayFireBackend<Sphere>) -> Result<(), HoloError> {
-        let rng = rand::thread_rng();
+        let rng = rand::rng();
 
         let v: Vec<f32> = rng
-            .sample_iter(rand::distributions::Standard)
+            .sample_iter(rand::distr::StandardUniform)
             .take(N)
             .collect();
 
@@ -753,10 +756,10 @@ mod tests {
     #[test]
     #[cfg_attr(miri, ignore)]
     fn test_from_slice_m(backend: ArrayFireBackend<Sphere>) -> Result<(), HoloError> {
-        let rng = rand::thread_rng();
+        let rng = rand::rng();
 
         let v: Vec<f32> = rng
-            .sample_iter(rand::distributions::Standard)
+            .sample_iter(rand::distr::StandardUniform)
             .take(N * 2 * N)
             .collect();
 
@@ -777,10 +780,10 @@ mod tests {
     #[test]
     #[cfg_attr(miri, ignore)]
     fn test_from_slice_cv(backend: ArrayFireBackend<Sphere>) -> Result<(), HoloError> {
-        let rng = rand::thread_rng();
+        let rng = rand::rng();
 
         let real: Vec<f32> = rng
-            .sample_iter(rand::distributions::Standard)
+            .sample_iter(rand::distr::StandardUniform)
             .take(N)
             .collect();
 
@@ -799,14 +802,14 @@ mod tests {
     #[test]
     #[cfg_attr(miri, ignore)]
     fn test_from_slice2_cv(backend: ArrayFireBackend<Sphere>) -> Result<(), HoloError> {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
 
         let real: Vec<f32> = (&mut rng)
-            .sample_iter(rand::distributions::Standard)
+            .sample_iter(rand::distr::StandardUniform)
             .take(N)
             .collect();
         let imag: Vec<f32> = (&mut rng)
-            .sample_iter(rand::distributions::Standard)
+            .sample_iter(rand::distr::StandardUniform)
             .take(N)
             .collect();
 
@@ -828,14 +831,14 @@ mod tests {
     #[test]
     #[cfg_attr(miri, ignore)]
     fn test_from_slice2_cm(backend: ArrayFireBackend<Sphere>) -> Result<(), HoloError> {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
 
         let real: Vec<f32> = (&mut rng)
-            .sample_iter(rand::distributions::Standard)
+            .sample_iter(rand::distr::StandardUniform)
             .take(N * 2 * N)
             .collect();
         let imag: Vec<f32> = (&mut rng)
-            .sample_iter(rand::distributions::Standard)
+            .sample_iter(rand::distr::StandardUniform)
             .take(N * 2 * N)
             .collect();
 
@@ -859,9 +862,9 @@ mod tests {
     fn test_copy_from_slice_v(backend: ArrayFireBackend<Sphere>) -> Result<(), HoloError> {
         {
             let mut a = backend.alloc_zeros_v(N)?;
-            let mut rng = rand::thread_rng();
+            let mut rng = rand::rng();
             let v = (&mut rng)
-                .sample_iter(rand::distributions::Standard)
+                .sample_iter(rand::distr::StandardUniform)
                 .take(N / 2)
                 .collect::<Vec<f32>>();
 
@@ -1142,8 +1145,8 @@ mod tests {
     fn test_scale_assign_cv(backend: ArrayFireBackend<Sphere>) -> Result<(), HoloError> {
         let mut v = make_random_cv(&backend, N)?;
         let vc = backend.clone_cv(&v)?;
-        let mut rng = rand::thread_rng();
-        let scale = Complex::new(rng.gen(), rng.gen());
+        let mut rng = rand::rng();
+        let scale = Complex::new(rng.random(), rng.random());
 
         backend.scale_assign_cv(scale, &mut v)?;
 
@@ -1293,8 +1296,8 @@ mod tests {
         let mut b = make_random_v(&backend, N)?;
         let bc = backend.clone_v(&b)?;
 
-        let mut rng = rand::thread_rng();
-        let alpha = rng.gen();
+        let mut rng = rand::rng();
+        let alpha = rng.random();
 
         backend.add_v(alpha, &a, &mut b)?;
 
@@ -1318,8 +1321,8 @@ mod tests {
         let mut b = make_random_m(&backend, N, N)?;
         let bc = backend.clone_m(&b)?;
 
-        let mut rng = rand::thread_rng();
-        let alpha = rng.gen();
+        let mut rng = rand::rng();
+        let alpha = rng.random();
 
         backend.add_m(alpha, &a, &mut b)?;
 
@@ -1339,7 +1342,7 @@ mod tests {
     #[test]
     #[cfg_attr(miri, ignore)]
     fn test_gevv_c(backend: ArrayFireBackend<Sphere>) -> Result<(), HoloError> {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
 
         {
             let a = make_random_cv(&backend, N)?;
@@ -1347,8 +1350,8 @@ mod tests {
             let mut c = make_random_cm(&backend, N, N)?;
             let cc = backend.clone_cm(&c)?;
 
-            let alpha = Complex::new(rng.gen(), rng.gen());
-            let beta = Complex::new(rng.gen(), rng.gen());
+            let alpha = Complex::new(rng.random(), rng.random());
+            let beta = Complex::new(rng.random(), rng.random());
             backend.gevv_c(Trans::NoTrans, Trans::Trans, alpha, &a, &b, beta, &mut c)?;
 
             let a = backend.to_host_cv(a)?;
@@ -1368,8 +1371,8 @@ mod tests {
             let mut c = make_random_cm(&backend, N, N)?;
             let cc = backend.clone_cm(&c)?;
 
-            let alpha = Complex::new(rng.gen(), rng.gen());
-            let beta = Complex::new(rng.gen(), rng.gen());
+            let alpha = Complex::new(rng.random(), rng.random());
+            let beta = Complex::new(rng.random(), rng.random());
             backend.gevv_c(
                 Trans::NoTrans,
                 Trans::ConjTrans,
@@ -1397,8 +1400,8 @@ mod tests {
             let mut c = make_random_cm(&backend, 1, 1)?;
             let cc = backend.clone_cm(&c)?;
 
-            let alpha = Complex::new(rng.gen(), rng.gen());
-            let beta = Complex::new(rng.gen(), rng.gen());
+            let alpha = Complex::new(rng.random(), rng.random());
+            let beta = Complex::new(rng.random(), rng.random());
             backend.gevv_c(Trans::Trans, Trans::NoTrans, alpha, &a, &b, beta, &mut c)?;
 
             let a = backend.to_host_cv(a)?;
@@ -1418,8 +1421,8 @@ mod tests {
             let mut c = make_random_cm(&backend, 1, 1)?;
             let cc = backend.clone_cm(&c)?;
 
-            let alpha = Complex::new(rng.gen(), rng.gen());
-            let beta = Complex::new(rng.gen(), rng.gen());
+            let alpha = Complex::new(rng.random(), rng.random());
+            let beta = Complex::new(rng.random(), rng.random());
             backend.gevv_c(
                 Trans::ConjTrans,
                 Trans::NoTrans,
@@ -1451,7 +1454,7 @@ mod tests {
         let m = N;
         let n = 2 * N;
 
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
 
         {
             let a = make_random_cm(&backend, m, n)?;
@@ -1459,8 +1462,8 @@ mod tests {
             let mut c = make_random_cv(&backend, m)?;
             let cc = backend.clone_cv(&c)?;
 
-            let alpha = Complex::new(rng.gen(), rng.gen());
-            let beta = Complex::new(rng.gen(), rng.gen());
+            let alpha = Complex::new(rng.random(), rng.random());
+            let beta = Complex::new(rng.random(), rng.random());
             backend.gemv_c(Trans::NoTrans, alpha, &a, &b, beta, &mut c)?;
 
             let a = backend.to_host_cm(a)?;
@@ -1480,8 +1483,8 @@ mod tests {
             let mut c = make_random_cv(&backend, m)?;
             let cc = backend.clone_cv(&c)?;
 
-            let alpha = Complex::new(rng.gen(), rng.gen());
-            let beta = Complex::new(rng.gen(), rng.gen());
+            let alpha = Complex::new(rng.random(), rng.random());
+            let beta = Complex::new(rng.random(), rng.random());
             backend.gemv_c(Trans::Trans, alpha, &a, &b, beta, &mut c)?;
 
             let a = backend.to_host_cm(a)?;
@@ -1501,8 +1504,8 @@ mod tests {
             let mut c = make_random_cv(&backend, m)?;
             let cc = backend.clone_cv(&c)?;
 
-            let alpha = Complex::new(rng.gen(), rng.gen());
-            let beta = Complex::new(rng.gen(), rng.gen());
+            let alpha = Complex::new(rng.random(), rng.random());
+            let beta = Complex::new(rng.random(), rng.random());
             backend.gemv_c(Trans::ConjTrans, alpha, &a, &b, beta, &mut c)?;
 
             let a = backend.to_host_cm(a)?;
@@ -1526,7 +1529,7 @@ mod tests {
         let n = 2 * N;
         let k = 3 * N;
 
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
 
         {
             let a = make_random_cm(&backend, m, k)?;
@@ -1534,8 +1537,8 @@ mod tests {
             let mut c = make_random_cm(&backend, m, n)?;
             let cc = backend.clone_cm(&c)?;
 
-            let alpha = Complex::new(rng.gen(), rng.gen());
-            let beta = Complex::new(rng.gen(), rng.gen());
+            let alpha = Complex::new(rng.random(), rng.random());
+            let beta = Complex::new(rng.random(), rng.random());
             backend.gemm_c(Trans::NoTrans, Trans::NoTrans, alpha, &a, &b, beta, &mut c)?;
 
             let a = backend.to_host_cm(a)?;
@@ -1555,8 +1558,8 @@ mod tests {
             let mut c = make_random_cm(&backend, m, n)?;
             let cc = backend.clone_cm(&c)?;
 
-            let alpha = Complex::new(rng.gen(), rng.gen());
-            let beta = Complex::new(rng.gen(), rng.gen());
+            let alpha = Complex::new(rng.random(), rng.random());
+            let beta = Complex::new(rng.random(), rng.random());
             backend.gemm_c(Trans::NoTrans, Trans::Trans, alpha, &a, &b, beta, &mut c)?;
 
             let a = backend.to_host_cm(a)?;
@@ -1576,8 +1579,8 @@ mod tests {
             let mut c = make_random_cm(&backend, m, n)?;
             let cc = backend.clone_cm(&c)?;
 
-            let alpha = Complex::new(rng.gen(), rng.gen());
-            let beta = Complex::new(rng.gen(), rng.gen());
+            let alpha = Complex::new(rng.random(), rng.random());
+            let beta = Complex::new(rng.random(), rng.random());
             backend.gemm_c(
                 Trans::NoTrans,
                 Trans::ConjTrans,
@@ -1605,8 +1608,8 @@ mod tests {
             let mut c = make_random_cm(&backend, m, n)?;
             let cc = backend.clone_cm(&c)?;
 
-            let alpha = Complex::new(rng.gen(), rng.gen());
-            let beta = Complex::new(rng.gen(), rng.gen());
+            let alpha = Complex::new(rng.random(), rng.random());
+            let beta = Complex::new(rng.random(), rng.random());
             backend.gemm_c(Trans::Trans, Trans::NoTrans, alpha, &a, &b, beta, &mut c)?;
 
             let a = backend.to_host_cm(a)?;
@@ -1626,8 +1629,8 @@ mod tests {
             let mut c = make_random_cm(&backend, m, n)?;
             let cc = backend.clone_cm(&c)?;
 
-            let alpha = Complex::new(rng.gen(), rng.gen());
-            let beta = Complex::new(rng.gen(), rng.gen());
+            let alpha = Complex::new(rng.random(), rng.random());
+            let beta = Complex::new(rng.random(), rng.random());
             backend.gemm_c(Trans::Trans, Trans::Trans, alpha, &a, &b, beta, &mut c)?;
 
             let a = backend.to_host_cm(a)?;
@@ -1647,8 +1650,8 @@ mod tests {
             let mut c = make_random_cm(&backend, m, n)?;
             let cc = backend.clone_cm(&c)?;
 
-            let alpha = Complex::new(rng.gen(), rng.gen());
-            let beta = Complex::new(rng.gen(), rng.gen());
+            let alpha = Complex::new(rng.random(), rng.random());
+            let beta = Complex::new(rng.random(), rng.random());
             backend.gemm_c(Trans::Trans, Trans::ConjTrans, alpha, &a, &b, beta, &mut c)?;
 
             let a = backend.to_host_cm(a)?;
@@ -1668,8 +1671,8 @@ mod tests {
             let mut c = make_random_cm(&backend, m, n)?;
             let cc = backend.clone_cm(&c)?;
 
-            let alpha = Complex::new(rng.gen(), rng.gen());
-            let beta = Complex::new(rng.gen(), rng.gen());
+            let alpha = Complex::new(rng.random(), rng.random());
+            let beta = Complex::new(rng.random(), rng.random());
             backend.gemm_c(
                 Trans::ConjTrans,
                 Trans::NoTrans,
@@ -1697,8 +1700,8 @@ mod tests {
             let mut c = make_random_cm(&backend, m, n)?;
             let cc = backend.clone_cm(&c)?;
 
-            let alpha = Complex::new(rng.gen(), rng.gen());
-            let beta = Complex::new(rng.gen(), rng.gen());
+            let alpha = Complex::new(rng.random(), rng.random());
+            let beta = Complex::new(rng.random(), rng.random());
             backend.gemm_c(Trans::ConjTrans, Trans::Trans, alpha, &a, &b, beta, &mut c)?;
 
             let a = backend.to_host_cm(a)?;
@@ -1718,8 +1721,8 @@ mod tests {
             let mut c = make_random_cm(&backend, m, n)?;
             let cc = backend.clone_cm(&c)?;
 
-            let alpha = Complex::new(rng.gen(), rng.gen());
-            let beta = Complex::new(rng.gen(), rng.gen());
+            let alpha = Complex::new(rng.random(), rng.random());
+            let beta = Complex::new(rng.random(), rng.random());
             backend.gemm_c(
                 Trans::ConjTrans,
                 Trans::ConjTrans,
@@ -1753,8 +1756,8 @@ mod tests {
 
             let a = &tmp * tmp.adjoint();
 
-            let mut rng = rand::thread_rng();
-            let x = VectorX::from_iterator(N, (0..N).map(|_| rng.gen()));
+            let mut rng = rand::rng();
+            let x = VectorX::from_iterator(N, (0..N).map(|_| rng.random()));
 
             let b = &a * &x;
 
@@ -1845,7 +1848,7 @@ mod tests {
         #[case] foci_num: usize,
         backend: ArrayFireBackend<Sphere>,
     ) -> Result<(), HoloError> {
-        let reference = |geometry: Geometry, foci: Vec<Vector3>| {
+        let reference = |geometry: Geometry, foci: Vec<Point3>| {
             let mut g = MatrixXc::zeros(
                 foci.len(),
                 geometry
@@ -1873,7 +1876,7 @@ mod tests {
         let geometry = generate_geometry(dev_num);
         let foci = gen_foci(foci_num).map(|(p, _)| p).collect::<Vec<_>>();
 
-        let g = backend.generate_propagation_matrix(&geometry, &foci, &None)?;
+        let g = backend.generate_propagation_matrix(&geometry, &foci, None)?;
         let g = backend.to_host_cm(g)?;
         reference(geometry, foci)
             .iter()
@@ -1901,7 +1904,7 @@ mod tests {
             geometry
                 .iter()
                 .map(|dev| {
-                    let mut filter = bit_vec::BitVec::new();
+                    let mut filter = BitVec::new();
                     dev.iter().for_each(|tr| {
                         filter.push(tr.idx() > dev.num_transducers() / 2);
                     });
@@ -1910,7 +1913,7 @@ mod tests {
                 .collect::<HashMap<_, _>>()
         };
 
-        let reference = |geometry, foci: Vec<Vector3>| {
+        let reference = |geometry, foci: Vec<Point3>| {
             let filter = filter(&geometry);
             let transducers = geometry
                 .iter()
@@ -1943,7 +1946,7 @@ mod tests {
         let foci = gen_foci(foci_num).map(|(p, _)| p).collect::<Vec<_>>();
         let filter = filter(&geometry);
 
-        let g = backend.generate_propagation_matrix(&geometry, &foci, &Some(filter))?;
+        let g = backend.generate_propagation_matrix(&geometry, &foci, Some(&filter))?;
         let g = backend.to_host_cm(g)?;
         assert_eq!(g.nrows(), foci.len());
         assert_eq!(
@@ -1976,7 +1979,7 @@ mod tests {
             .sum::<usize>();
         let n = foci.len();
 
-        let g = backend.generate_propagation_matrix(&geometry, &foci, &None)?;
+        let g = backend.generate_propagation_matrix(&geometry, &foci, None)?;
 
         let b = backend.gen_back_prop(m, n, &g)?;
         let g = backend.to_host_cm(g)?;

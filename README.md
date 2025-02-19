@@ -4,4 +4,4 @@ Holo gain backend using ArrayFire for [autd3](https://github.com/shinolab/autd3-
 
 # Author
 
-Shun Suzuki, 2023-2024
+Shun Suzuki, 2023-2025

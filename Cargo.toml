@@ -1,6 +1,6 @@
 [package]
 name = "autd3-backend-arrayfire"
-version = "28.0.0"
+version = "29.0.0"
 authors = ["shun suzuki <suzuki@hapis.k.u-tokyo.ac.jp>"]
 edition = "2021"
 
@@ -11,21 +11,19 @@ readme = "README.md"
 keywords = ["autd"]
 
 [dependencies]
-autd3-driver = "28.0.0"
-autd3-gain-holo = "28.0.0"
-nalgebra = { version = "0.33.0", default-features = false, features = ["std"] }
-arrayfire = "3.8.0"
-rand = "0.8.5"
-thiserror = "1.0.31"
-bit-vec = "0.8.0"
+autd3-core = { version = "29.0.0", features = ["acoustics", "derive", "gain"] }
+autd3-gain-holo = { version = "29.0.0", default-features = false }
+nalgebra = { version = "0.33.2", default-features = false, features = ["std"] }
+arrayfire = { version = "3.8.0", default-features = false, features = ["algorithm", "arithmetic", "blas", "data", "indexing", "lapack"] }
+rand = { version = "0.9.0", default-features = false }
+thiserror = { version = "2.0.11", default-features = false }
 
 [dev-dependencies]
-anyhow = "1.0.86"
-autd3 = "28.0.0"
-tokio = { version = "1.39.2", features = ["macros", "rt-multi-thread"] }
-rstest = "0.22.0"
-assert_approx_eq = "1.1.0"
-approx = "0.5.1"
+anyhow = { version = "1.0.95", default-features = false }
+autd3 = { version = "29.0.0", default-features = false }
+rstest = { version = "0.24.0", default-features = false }
+assert_approx_eq = { version = "1.1.0", default-features = false }
+approx = { version = "0.5.1", default-features = false }
 
 [features]
 default = []
