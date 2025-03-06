@@ -524,7 +524,7 @@ mod tests {
     use autd3_core::{
         acoustics::directivity::Sphere,
         defined::PI,
-        geometry::{IntoDevice, Point3, UnitQuaternion},
+        geometry::{Point3, UnitQuaternion},
     };
 
     use nalgebra::{ComplexField, Normed};
@@ -551,7 +551,7 @@ mod tests {
                             ),
                             rot: UnitQuaternion::identity(),
                         }
-                        .into_device((j + i * size) as _)
+                        .into()
                     })
                 })
                 .collect(),
