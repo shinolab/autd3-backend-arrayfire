@@ -1,8 +1,6 @@
 #![allow(unknown_lints)]
 #![allow(clippy::manual_slice_size_calculation)]
 
-use std::collections::HashMap;
-
 use arrayfire::*;
 
 use autd3_core::{
@@ -10,7 +8,8 @@ use autd3_core::{
         directivity::{Directivity, Sphere},
         propagate,
     },
-    gain::BitVec,
+    environment::Environment,
+    gain::TransducerFilter,
     geometry::Geometry,
 };
 use autd3_gain_holo::{
@@ -83,39 +82,35 @@ impl<D: Directivity> LinAlgBackend<D> for ArrayFireBackend<D> {
     fn generate_propagation_matrix(
         &self,
         geometry: &Geometry,
+        env: &Environment,
         foci: &[autd3_core::geometry::Point3],
-        filter: Option<&HashMap<usize, BitVec>>,
+        filter: &TransducerFilter,
     ) -> Result<Self::MatrixXc, HoloError> {
-        let g = if let Some(filter) = filter {
+        let g = if filter.is_all_enabled() {
             geometry
-                .devices()
-                .flat_map(|dev| {
-                    dev.iter().filter_map(move |tr| {
-                        if let Some(filter) = filter.get(&dev.idx()) {
-                            if filter[tr.idx()] {
-                                Some(foci.iter().map(move |fp| {
-                                    propagate::<D>(tr, dev.wavenumber(), dev.axial_direction(), fp)
-                                }))
-                            } else {
-                                None
-                            }
-                        } else {
-                            None
-                        }
-                    })
-                })
-                .flatten()
-                .collect::<Vec<_>>()
-        } else {
-            geometry
-                .devices()
+                .iter()
                 .flat_map(|dev| {
                     dev.iter().flat_map(move |tr| {
                         foci.iter().map(move |fp| {
-                            propagate::<D>(tr, dev.wavenumber(), dev.axial_direction(), fp)
+                            propagate::<D>(tr, env.wavenumber(), dev.axial_direction(), fp)
                         })
                     })
                 })
+                .collect::<Vec<_>>()
+        } else {
+            geometry
+                .iter()
+                .filter(|dev| filter.is_enabled_device(dev))
+                .flat_map(|dev| {
+                    dev.iter()
+                        .filter(|tr| filter.is_enabled(tr))
+                        .map(move |tr| {
+                            foci.iter().map(move |fp| {
+                                propagate::<D>(tr, env.wavenumber(), dev.axial_direction(), fp)
+                            })
+                        })
+                })
+                .flatten()
                 .collect::<Vec<_>>()
         };
 
@@ -520,11 +515,12 @@ impl<D: Directivity> LinAlgBackend<D> for ArrayFireBackend<D> {
 }
 #[cfg(test)]
 mod tests {
+    use std::f32::consts::PI;
+
     use autd3::driver::autd3_device::AUTD3;
     use autd3_core::{
         acoustics::directivity::Sphere,
-        defined::PI,
-        geometry::{Point3, UnitQuaternion},
+        geometry::{Point3, Transducer, UnitQuaternion},
     };
 
     use nalgebra::{ComplexField, Normed};
@@ -1848,6 +1844,8 @@ mod tests {
         #[case] foci_num: usize,
         backend: ArrayFireBackend<Sphere>,
     ) -> Result<(), HoloError> {
+        let env = Environment::new();
+
         let reference = |geometry: Geometry, foci: Vec<Point3>| {
             let mut g = MatrixXc::zeros(
                 foci.len(),
@@ -1864,7 +1862,7 @@ mod tests {
                 (0..transducers.len()).for_each(|j| {
                     g[(i, j)] = propagate::<Sphere>(
                         transducers[j].1,
-                        geometry[transducers[j].0].wavenumber(),
+                        env.wavenumber(),
                         geometry[transducers[j].0].axial_direction(),
                         &foci[i],
                     )
@@ -1876,7 +1874,12 @@ mod tests {
         let geometry = generate_geometry(dev_num);
         let foci = gen_foci(foci_num).map(|(p, _)| p).collect::<Vec<_>>();
 
-        let g = backend.generate_propagation_matrix(&geometry, &foci, None)?;
+        let g = backend.generate_propagation_matrix(
+            &geometry,
+            &env,
+            &foci,
+            &TransducerFilter::all_enabled(),
+        )?;
         let g = backend.to_host_cm(g)?;
         reference(geometry, foci)
             .iter()
@@ -1898,19 +1901,13 @@ mod tests {
         #[case] foci_num: usize,
         backend: ArrayFireBackend<Sphere>,
     ) -> Result<(), HoloError> {
-        use std::collections::HashMap;
+        let env = Environment::new();
 
-        let filter = |geometry: &Geometry| {
-            geometry
-                .iter()
-                .map(|dev| {
-                    let mut filter = BitVec::new();
-                    dev.iter().for_each(|tr| {
-                        filter.push(tr.idx() > dev.num_transducers() / 2);
-                    });
-                    (dev.idx(), filter)
-                })
-                .collect::<HashMap<_, _>>()
+        let filter = |geometry: &Geometry| -> TransducerFilter {
+            TransducerFilter::from_fn(geometry, |dev| {
+                let num_transducers = dev.num_transducers();
+                Some(move |tr: &Transducer| tr.idx() > num_transducers / 2)
+            })
         };
 
         let reference = |geometry, foci: Vec<Point3>| {
@@ -1919,7 +1916,7 @@ mod tests {
                 .iter()
                 .flat_map(|dev| {
                     dev.iter().filter_map(|tr| {
-                        if filter[&dev.idx()][tr.idx()] {
+                        if filter.is_enabled(tr) {
                             Some((dev.idx(), tr))
                         } else {
                             None
@@ -1933,7 +1930,7 @@ mod tests {
                 (0..transducers.len()).for_each(|j| {
                     g[(i, j)] = propagate::<Sphere>(
                         transducers[j].1,
-                        geometry[transducers[j].0].wavenumber(),
+                        env.wavenumber(),
                         geometry[transducers[j].0].axial_direction(),
                         &foci[i],
                     )
@@ -1946,7 +1943,7 @@ mod tests {
         let foci = gen_foci(foci_num).map(|(p, _)| p).collect::<Vec<_>>();
         let filter = filter(&geometry);
 
-        let g = backend.generate_propagation_matrix(&geometry, &foci, Some(&filter))?;
+        let g = backend.generate_propagation_matrix(&geometry, &env, &foci, &filter)?;
         let g = backend.to_host_cm(g)?;
         assert_eq!(g.nrows(), foci.len());
         assert_eq!(
@@ -1970,6 +1967,8 @@ mod tests {
     #[rstest::rstest]
     #[test]
     fn test_gen_back_prop(backend: ArrayFireBackend<Sphere>) -> Result<(), HoloError> {
+        let env = Environment::new();
+
         let geometry = generate_geometry(1);
         let foci = gen_foci(2).map(|(p, _)| p).collect::<Vec<_>>();
 
@@ -1979,7 +1978,12 @@ mod tests {
             .sum::<usize>();
         let n = foci.len();
 
-        let g = backend.generate_propagation_matrix(&geometry, &foci, None)?;
+        let g = backend.generate_propagation_matrix(
+            &geometry,
+            &env,
+            &foci,
+            &TransducerFilter::all_enabled(),
+        )?;
 
         let b = backend.gen_back_prop(m, n, &g)?;
         let g = backend.to_host_cm(g)?;
